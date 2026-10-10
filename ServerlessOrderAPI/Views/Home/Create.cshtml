@@ -1,0 +1,103 @@
+﻿@{
+    Layout = null; 
+}
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Створити замовлення | Serverless API</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; background-color: #fdf2f8; color: #4a4a4a; font-family: 'Inter', sans-serif; }
+        
+        .navbar { background-color: #ffffff; padding: 15px 30px; box-shadow: 0 2px 10px rgba(244, 114, 182, 0.1); display: flex; justify-content: center; gap: 20px; }
+        .navbar a { text-decoration: none; color: #db2777; font-weight: 500; font-size: 1.1rem; padding: 10px 20px; border-radius: 8px; transition: 0.3s; }
+        .navbar a.active { background-color: #f472b6; color: white; }
+        .navbar a:hover:not(.active) { background-color: #fce7f3; }
+
+        .container { max-width: 600px; margin: 50px auto; padding: 30px; background: #ffffff; border-radius: 12px; border: 1px solid #fce7f3; box-shadow: 0 8px 20px rgba(244, 114, 182, 0.15); }
+        h2 { color: #831843; text-align: center; margin-bottom: 25px; border-bottom: 2px solid #fbcfe8; padding-bottom: 10px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 500; color: #db2777; }
+        .form-control { width: 100%; box-sizing: border-box; padding: 12px; border: 1px solid #fbcfe8; border-radius: 6px; font-size: 1rem; color: #4a4a4a; }
+        .form-control:focus { outline: none; border-color: #f472b6; box-shadow: 0 0 0 3px rgba(244, 114, 182, 0.2); }
+        
+        .btn-submit { width: 100%; background-color: #f472b6; color: white; border: none; padding: 15px; font-size: 1rem; font-weight: 600; border-radius: 6px; cursor: pointer; text-transform: uppercase; transition: 0.3s; }
+        .btn-submit:hover { background-color: #ec4899; box-shadow: 0 4px 12px rgba(236, 72, 153, 0.3); }
+        
+        #messageBox { display: none; margin-top: 20px; padding: 15px; border-radius: 6px; font-weight: 500; text-align: center; }
+        .success { background-color: #fdf2f8; color: #db2777; border: 1px solid #f472b6; }
+        .error { background-color: #fef2f2; color: #ef4444; border: 1px solid #fca5a5; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <a href="/Home/Create" class="active">Створити замовлення</a>
+        <a href="/Home/Search">Пошук замовлень</a>
+    </nav>
+
+    <div class="container">
+        <h2>Нове замовлення</h2>
+        <div class="form-group">
+            <label>Ім'я клієнта</label>
+            <input type="text" id="customer" class="form-control" placeholder="Введіть ім'я" />
+        </div>
+        <div class="form-group">
+            <label>Назва товару</label>
+            <input type="text" id="product" class="form-control" placeholder="Що замовляємо?" />
+        </div>
+        <div class="form-group">
+            <label>Кількість</label>
+            <input type="number" id="qty" class="form-control" value="1" min="1" />
+        </div>
+        
+        <button type="button" class="btn-submit" onclick="submitOrder()">Відправити в AWS</button>
+
+        <div id="messageBox"></div>
+    </div>
+
+    <script>
+        async function submitOrder() {
+            const customer = document.getElementById('customer').value.trim();
+            const product = document.getElementById('product').value.trim();
+            const qty = parseInt(document.getElementById('qty').value);
+            const msgBox = document.getElementById('messageBox');
+
+            if (!customer || !product || !qty) {
+                msgBox.className = 'error';
+                msgBox.innerHTML = 'Будь ласка, заповніть всі поля!';
+                msgBox.style.display = 'block';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/orders', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ CustomerName: customer, Product: product, Quantity: qty })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    msgBox.className = 'success';
+                    msgBox.innerHTML = `Успішно збережено в S3!<br>ID: <b>${data.id}</b>`;
+                    msgBox.style.display = 'block';
+                    
+                    document.getElementById('customer').value = '';
+                    document.getElementById('product').value = '';
+                    document.getElementById('qty').value = '1';
+                } else {
+                    throw new Error('Помилка сервера API');
+                }
+            } catch (error) {
+                msgBox.className = 'error';
+                msgBox.innerHTML = 'Помилка з\'єднання. Перевірте консоль.';
+                msgBox.style.display = 'block';
+                console.error(error);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,172 @@
+﻿@{
+    Layout = null; 
+}
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Пошук замовлень | Serverless API</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; background-color: #fdf2f8; color: #4a4a4a; font-family: 'Inter', sans-serif; }
+        
+        .navbar { background-color: #ffffff; padding: 15px 30px; box-shadow: 0 2px 10px rgba(244, 114, 182, 0.1); display: flex; justify-content: center; gap: 20px; }
+        .navbar a { text-decoration: none; color: #db2777; font-weight: 500; font-size: 1.1rem; padding: 10px 20px; border-radius: 8px; transition: 0.3s; }
+        .navbar a.active { background-color: #f472b6; color: white; }
+        .navbar a:hover:not(.active) { background-color: #fce7f3; }
+
+        .container { max-width: 800px; margin: 40px auto; padding: 30px; background: #ffffff; border-radius: 12px; border: 1px solid #fce7f3; box-shadow: 0 8px 20px rgba(244, 114, 182, 0.15); }
+        h2 { color: #831843; text-align: center; margin-bottom: 25px; border-bottom: 2px solid #fbcfe8; padding-bottom: 10px; }
+        
+        .search-box { display: flex; gap: 10px; margin-bottom: 20px; }
+        .form-control { flex: 1; padding: 12px; border: 1px solid #fbcfe8; border-radius: 6px; font-size: 1rem; color: #4a4a4a; }
+        .form-control:focus { outline: none; border-color: #f472b6; box-shadow: 0 0 0 3px rgba(244, 114, 182, 0.2); }
+        
+        .btn-primary { background-color: #f472b6; color: white; border: none; padding: 0 25px; font-size: 1rem; font-weight: 600; border-radius: 6px; cursor: pointer; transition: 0.3s; }
+        .btn-primary:hover { background-color: #ec4899; }
+        
+        .btn-status { background-color: #fbcfe8; color: #831843; border: none; padding: 8px 15px; border-radius: 4px; font-weight: 500; cursor: pointer; margin-top: 10px; font-size: 0.85rem;}
+        .btn-status:hover { background-color: #f472b6; color: white; }
+        .btn-clear { background-color: transparent; border: 1px solid #f472b6; color: #f472b6; padding: 0 15px; border-radius: 6px; cursor: pointer; font-weight: 500;}
+        .btn-clear:hover { background-color: #fdf2f8; }
+
+        .error-msg { color: #ef4444; font-weight: 500; text-align: center; display: none; margin-top: 15px; padding: 10px; background: #fef2f2; border-radius: 6px;}
+
+        .order-card { padding: 20px; border-radius: 8px; background-color: #fff5f8; border: 1px solid #fbcfe8; margin-bottom: 15px; position: relative; }
+        .status-badge { display: inline-block; padding: 4px 10px; background: #db2777; color: white; border-radius: 20px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; margin-bottom: 10px;}
+        .order-id { position: absolute; top: 20px; right: 20px; color: #9ca3af; font-family: monospace; font-size: 1.1rem; font-weight: 600; }
+        
+        #allOrdersSection { margin-top: 40px; }
+        #allOrdersSection h3 { color: #db2777; border-bottom: 1px solid #fce7f3; padding-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <a href="/Home/Create">Створити замовлення</a>
+        <a href="/Home/Search" class="active">Керування замовленнями</a>
+    </nav>
+
+    <div class="container">
+        <h2>Пошук замовлення</h2>
+        
+        <div class="search-box">
+            <input type="text" id="searchId" class="form-control" placeholder="Введіть 5-значний ID..." />
+            <button type="button" class="btn-primary" onclick="searchOrder()">Знайти</button>
+            <button type="button" class="btn-clear" id="btnClear" style="display:none;" onclick="resetSearch()">Скинути</button>
+        </div>
+
+        <div id="errorMsg" class="error-msg">Замовлення не знайдено.</div>
+
+        <div id="searchResultContainer"></div>
+
+        <div id="allOrdersSection">
+            <h3>Всі замовлення:</h3>
+            <div id="allOrdersList">
+                <p style="color: #9ca3af;">Завантаження списку...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.onload = function() {
+            loadAllOrders();
+        };
+
+        function createOrderCard(data) {
+            let actionButton = '';
+            if(data.status !== 'Completed') {
+                actionButton = `<button class="btn-status" onclick="updateStatus('${data.id}', 'Processing')">Змінити статус на Processing</button>`;
+            }
+
+            return `
+                <div class="order-card">
+                    <div class="order-id">#${data.id}</div>
+                    <span class="status-badge">${data.status}</span>
+                    <p style="margin: 5px 0;"><strong>Клієнт:</strong> ${data.customerName}</p>
+                    <p style="margin: 5px 0;"><strong>Товар:</strong> ${data.product} (Кількість: ${data.quantity})</p>
+                    <p style="margin: 5px 0; font-size: 0.85rem; color: #6b7280;">Створено: ${new Date(data.createdDate).toLocaleString('uk-UA')}</p>
+                    <div style="margin-top: 10px;">${actionButton}</div>
+                </div>
+            `;
+        }
+
+        async function loadAllOrders() {
+            const listDiv = document.getElementById('allOrdersList');
+            try {
+                const res = await fetch('/api/orders');
+                if (res.ok) {
+                    const orders = await res.json();
+                    if(orders.length === 0) {
+                        listDiv.innerHTML = '<p style="color: #9ca3af;">Замовлень ще немає. Створіть перше!</p>';
+                        return;
+                    }
+                    
+                    listDiv.innerHTML = orders.map(order => createOrderCard(order)).join('');
+                }
+            } catch (e) {
+                listDiv.innerHTML = '<p style="color: #ef4444;">Помилка завантаження списку.</p>';
+            }
+        }
+
+        async function searchOrder() {
+            const id = document.getElementById('searchId').value.trim();
+            const resultContainer = document.getElementById('searchResultContainer');
+            const allOrdersSection = document.getElementById('allOrdersSection');
+            const errorMsg = document.getElementById('errorMsg');
+            const btnClear = document.getElementById('btnClear');
+            
+            errorMsg.style.display = 'none';
+
+            if (!id) return;
+
+            try {
+                const response = await fetch('/api/orders/' + id);
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    allOrdersSection.style.display = 'none';
+                    resultContainer.innerHTML = createOrderCard(data);
+                    resultContainer.style.display = 'block';
+                    btnClear.style.display = 'block';
+                } else {
+                    errorMsg.style.display = 'block';
+                    resultContainer.style.display = 'none';
+                }
+            } catch (error) {
+                errorMsg.style.display = 'block';
+            }
+        }
+
+        function resetSearch() {
+            document.getElementById('searchId').value = '';
+            document.getElementById('searchResultContainer').style.display = 'none';
+            document.getElementById('btnClear').style.display = 'none';
+            document.getElementById('errorMsg').style.display = 'none';
+            document.getElementById('allOrdersSection').style.display = 'block';
+            loadAllOrders();
+        }
+
+        async function updateStatus(id, status) {
+            try {
+                const response = await fetch('/api/orders/' + id + '/status', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(status)
+                });
+                
+                if (response.ok) {
+                    if (document.getElementById('searchResultContainer').style.display === 'block') {
+                        searchOrder();
+                    } else {
+                        loadAllOrders();
+                    }
+                }
+            } catch (error) {
+                console.error("Помилка оновлення статусу:", error);
+            }
+        }
+    </script>
+</body>
+</html>
